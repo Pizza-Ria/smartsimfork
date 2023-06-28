@@ -30,9 +30,12 @@ import signal
 import socket
 import sys
 import tempfile
+import typing as t
+
 from pathlib import Path
 from subprocess import PIPE, STDOUT
-from typing import List
+from types import FrameType
+
 
 import filelock
 import psutil
@@ -51,11 +54,11 @@ DBPID = None
 SIGNALS = [signal.SIGINT, signal.SIGTERM, signal.SIGQUIT, signal.SIGABRT]
 
 
-def handle_signal(signo, frame):
+def handle_signal(signo: int, frame: t.Optional[FrameType]) -> None:
     cleanup()
 
 
-def launch_db_model(client: Client, db_model: List[str]):
+def launch_db_model(client: Client, db_model: t.List[str]) -> str:
     """Parse options to launch model on local cluster
 
     :param client: SmartRedis client connected to local DB
@@ -118,7 +121,7 @@ def launch_db_model(client: Client, db_model: List[str]):
     return args.name
 
 
-def launch_db_script(client: Client, db_script: List[str]):
+def launch_db_script(client: Client, db_script: t.List[str]) -> str:
     """Parse options to launch script on local cluster
 
     :param client: SmartRedis client connected to local DB
@@ -159,27 +162,30 @@ def launch_db_script(client: Client, db_script: List[str]):
 def main(
     network_interface: str,
     db_cpus: int,
-    command: List[str],
-    db_models: List[List[str]],
-    db_scripts: List[List[str]],
-):
+    command: t.List[str],
+    db_models: t.List[t.List[str]],
+    db_scripts: t.List[t.List[str]],
+) -> None:
     global DBPID
 
+    lo_address = current_ip("lo")
     try:
-        ip_address = None
-        if network_interface:
-            ip_address = current_ip(network_interface)
-        lo_address = current_ip("lo")
+        ip_addresses = [
+            current_ip(interface) for interface in network_interface.split(",")
+        ]
+
     except ValueError as e:
         logger.warning(e)
-        ip_address = None
+        ip_addresses = []
 
-    if lo_address == ip_address or not ip_address:
+    if all(lo_address == ip_address for ip_address in ip_addresses) or not ip_addresses:
         cmd = command + [f"--bind {lo_address}"]
     else:
         # bind to both addresses if the user specified a network
         # address that exists and is not the loopback address
-        cmd = command + [f"--bind {lo_address} {ip_address}"]
+        cmd = command + [f"--bind {lo_address} {' '.join(ip_addresses)}"]
+        # pin source address to avoid random selection by Redis
+        cmd += [f"--bind-source-addr {lo_address}"]
 
     # we generally want to catch all exceptions here as
     # if this process dies, the application will most likely fail
@@ -190,26 +196,26 @@ def main(
     except Exception as e:
         cleanup()
         logger.error(f"Failed to start database process: {str(e)}")
-        raise SSInternalError("Co-located process failed to start") from e
+        raise SSInternalError("Colocated process failed to start") from e
 
     try:
         if sys.platform != "darwin":
             # Set CPU affinity to the last $db_cpus CPUs
             affinity = p.cpu_affinity()
-            cpus_to_use = affinity[-db_cpus:]
+            cpus_to_use = affinity[-db_cpus:] if affinity else None
             p.cpu_affinity(cpus_to_use)
         else:
             # psutil doesn't support pinning on MacOS
             cpus_to_use = "CPU pinning disabled on MacOS"
 
         logger.debug(
-            "\n\nCo-located database information\n"
+            "\n\nColocated database information\n"
             + "\n".join(
                 (
-                    f"\tIP Address: {ip_address}",
-                    f"\t# of Database CPUs: {db_cpus}",
+                    f"\tIP Address(es): {' '.join(ip_addresses + [lo_address])}",
                     f"\tAffinity: {cpus_to_use}",
                     f"\tCommand: {' '.join(cmd)}\n\n",
+                    f"\t# of Database CPUs: {db_cpus}",
                 )
             )
         )
@@ -239,15 +245,15 @@ def main(
 
     except Exception as e:
         cleanup()
-        logger.error(f"Co-located database process failed: {str(e)}")
-        raise SSInternalError("Co-located entrypoint raised an error") from e
+        logger.error(f"Colocated database process failed: {str(e)}")
+        raise SSInternalError("Colocated entrypoint raised an error") from e
 
 
-def cleanup():
+def cleanup() -> None:
     global DBPID
     global LOCK
     try:
-        logger.debug("Cleaning up co-located database")
+        logger.debug("Cleaning up colocated database")
         # attempt to stop the database process
         db_proc = psutil.Process(DBPID)
         db_proc.terminate()
@@ -256,7 +262,7 @@ def cleanup():
         logger.warning("Couldn't find database process to kill.")
 
     except OSError as e:
-        logger.warning(f"Failed to clean up co-located database gracefully: {str(e)}")
+        logger.warning(f"Failed to clean up colocated database gracefully: {str(e)}")
     finally:
         if LOCK.is_locked:
             LOCK.release()
@@ -300,7 +306,7 @@ if __name__ == "__main__":
 
         LOCK = filelock.FileLock(tmp_lockfile)
         LOCK.acquire(timeout=0.1)
-        logger.debug(f"Starting co-located database on host: {socket.gethostname()}")
+        logger.debug(f"Starting colocated database on host: {socket.gethostname()}")
 
         os.environ["PYTHONUNBUFFERED"] = "1"
 

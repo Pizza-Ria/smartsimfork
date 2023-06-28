@@ -11,6 +11,66 @@ Jump to :ref:`SmartRedis Changelog <changelog>`
 SmartSim
 ========
 
+Development branch
+------------------
+
+To be released at some future date
+
+Note
+
+This section details changes made in the development branch that have not yet
+been applied to a released version of the SmartSim library.
+
+Description
+
+A full list of changes and detailed notes can be found below:
+
+- Remove wait time associated with Experiment launch summary
+- Update and rename Redis conf file
+- Migrate from redis-py-cluster to redis-py
+- Update full test suite to not require a TF wheel at test time
+- Update doc strings
+- Remove deprecated code
+- Relax the coloredlogs version
+- Update Fortran tutorials for SmartRedis
+- Add support for multiple network interface binding in Orchestrator and Colocated DBs
+- Add typehints and static analysis
+
+Detailed notes
+
+- Typehints have been added. A makefile target `make check-mypy` executes static
+  analysis with mypy. (PR295_, PR303_)
+- Simplify code in `random_permutations` parameter generation strategy (PR300_)
+- Remove wait time associated with Experiment launch summary (PR298_)
+- Update Redis conf file to conform with Redis v7.0.5 conf file (PR293_)
+- Migrate from redis-py-cluster to redis-py for cluster status checks (PR292_)
+- Update full test suite to no longer require a tensorflow wheel to be available
+  at test time. (PR291_)
+- Correct spelling of colocated in doc strings (PR290_)
+- Deprecated launcher-specific orchestrators, constants, and ML 
+  utilities were removed. (PR289_)
+- Relax the coloredlogs version to be greater than 10.0 (PR288_)
+- Update the Github Actions runner image from `macos-10.15`` to `macos-12``. The
+  former began deprecation in May 2022 and was finally removed in May 2023. (PR285_)
+- The Fortran tutorials had not been fully updated to show how to handle 
+  return/error codes. These have now all been updated. (PR284_)
+- Orchestrator and Colocated DB now accept a list of interfaces to bind to. The 
+  argument name is still `interface` for backward compatibility reasons. (PR281_)
+
+.. _PR303: https://github.com/CrayLabs/SmartSim/pull/303
+.. _PR300: https://github.com/CrayLabs/SmartSim/pull/300
+.. _PR298: https://github.com/CrayLabs/SmartSim/pull/298
+.. _PR293: https://github.com/CrayLabs/SmartSim/pull/293
+.. _PR292: https://github.com/CrayLabs/SmartSim/pull/292
+.. _PR291: https://github.com/CrayLabs/SmartSim/pull/291
+.. _PR290: https://github.com/CrayLabs/SmartSim/pull/290
+.. _PR289: https://github.com/CrayLabs/SmartSim/pull/289
+.. _PR288: https://github.com/CrayLabs/SmartSim/pull/288
+.. _PR285: https://github.com/CrayLabs/SmartSim/pull/285
+.. _PR284: https://github.com/CrayLabs/SmartSim/pull/284
+.. _PR281: https://github.com/CrayLabs/SmartSim/pull/281
+.. _PR295: https://github.com/CrayLabs/SmartSim/pull/295
+
 0.4.2
 -----
 
@@ -24,10 +84,10 @@ support to allow users to colocate their models with an orchestrator using
 Unix domain sockets and support for launching models as batch jobs.
 
 Additionally, SmartSim has updated its tool chains to provide a better user
-experience. Notably, SmarSim can now be used with Python 3.10, Redis 7.0.5, and 
+experience. Notably, SmarSim can now be used with Python 3.10, Redis 7.0.5, and
 RedisAI 1.2.7. Furthermore, SmartSim now utilizes SmartRedis's aggregation lists to
 streamline the use and extension of ML data loaders, making working with popular
-machine learning frameworks in SmartSim a breeze. 
+machine learning frameworks in SmartSim a breeze.
 
 A full list of changes and detailed notes can be found below:
 
@@ -64,9 +124,9 @@ Detailed Notes
 - Fix bug in colocated database entrypoint stemming from uninitialized variables. This bug affects PyTorch models being loaded into the database. (PR237_)
 - The release of RedisAI 1.2.7 allows us to update support for recent versions of PyTorch, Tensorflow, and ONNX (PR234_)
 - Make installation of correct Torch backend more reliable according to instruction from PyTorch
-- In addition to TCP, add UDS support for colocating an orchestrator with models. Methods 
+- In addition to TCP, add UDS support for colocating an orchestrator with models. Methods
   `Model.colocate_db_tcp` and `Model.colocate_db_uds` were added to expose this functionality.
-  The `Model.colocate_db` method remains and uses TCP for backward compatibility (PR246_) 
+  The `Model.colocate_db` method remains and uses TCP for backward compatibility (PR246_)
 
 .. _PR270: https://github.com/CrayLabs/SmartSim/pull/270
 .. _PR264: https://github.com/CrayLabs/SmartSim/pull/264

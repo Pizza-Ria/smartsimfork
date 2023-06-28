@@ -25,10 +25,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+import psutil
+import typing as t
+
 from functools import lru_cache
 from pathlib import Path
-
-import psutil
 
 from ...error import SSConfigError
 from ..utils.helpers import expand_exe_path
@@ -44,15 +45,15 @@ from ..utils.helpers import expand_exe_path
 #
 # REDIS_CONF
 #   - Path to the redis.conf file
-#   - Default: /SmartSim/smartsim/config/redis6.conf
+#   - Default: /SmartSim/smartsim/_core/config/redis.conf
 #
 # REDIS_PATH
 #   - Path to the redis-server executable
-#   - Default: /SmartSim/smartsim/bin/redis-server
+#   - Default: /SmartSim/smartsim/_core/bin/redis-server
 #
 # REDIS_CLI_PATH
 #   - Path to the redis-cli executable
-#   - Default: /SmartSim/smartsim/bin/redis-cli
+#   - Default: /SmartSim/smartsim/_core/bin/redis-cli
 #
 # SMARTSIM_LOG_LEVEL
 #   - Log level for SmartSim
@@ -84,7 +85,7 @@ from ..utils.helpers import expand_exe_path
 
 
 class Config:
-    def __init__(self):
+    def __init__(self) -> None:
         # SmartSim/smartsim/_core
         self.core_path = Path(os.path.abspath(__file__)).parent.parent
 
@@ -92,7 +93,7 @@ class Config:
 
         self.lib_path = Path(dependency_path, "lib").resolve()
         self.bin_path = Path(dependency_path, "bin").resolve()
-        self.conf_path = Path(dependency_path, "config", "redis6.conf")
+        self.conf_path = Path(dependency_path, "config", "redis.conf")
 
     @property
     def redisai(self) -> str:
@@ -150,40 +151,44 @@ class Config:
         return int(os.environ.get("SMARTSIM_WLM_TRIALS", 10))
 
     @property
-    def test_launcher(self) -> str:
+    def test_launcher(self) -> str:  # pragma: no cover
         return os.environ.get("SMARTSIM_TEST_LAUNCHER", "local")
 
     @property
-    def test_device(self) -> str:
+    def test_device(self) -> str:  # pragma: no cover
         return os.environ.get("SMARTSIM_TEST_DEVICE", "CPU")
 
     @property
-    def test_port(self) -> int:
+    def test_port(self) -> int:  # pragma: no cover
         return int(os.environ.get("SMARTSIM_TEST_PORT", 6780))
 
     @property
-    def test_interface(self) -> str:
-        interface = os.environ.get("SMARTSIM_TEST_INTERFACE", None)
-        if not interface:
-            # try to pick a sensible one
-            net_if_addrs = psutil.net_if_addrs()
-            if "ipogif0" in net_if_addrs:
-                return "ipogif0"
-            elif "ib0" in net_if_addrs:
-                return "ib0"
-            # default to aries network
-            return "ipogif0"
-        else:
-            return interface
+    def test_interface(self) -> t.List[str]:  # pragma: no cover
+        if interfaces_cfg := os.environ.get("SMARTSIM_TEST_INTERFACE", None):
+            return interfaces_cfg.split(",")
+
+        # try to pick a sensible one
+        net_if_addrs = psutil.net_if_addrs()
+        if "ipogif0" in net_if_addrs:
+            return ["ipogif0"]
+        elif "hsn0" in net_if_addrs:
+            return [
+                net_if_addr
+                for net_if_addr in net_if_addrs
+                if net_if_addr.startswith("hsn")
+            ]
+        elif "ib0" in net_if_addrs:
+            return ["ib0"]
+        # default to aries network
+        return ["ipogif0"]
 
     @property
-    def test_account(self) -> str:
+    def test_account(self) -> t.Optional[str]:  # pragma: no cover
         # no account by default
-        return os.environ.get("SMARTSIM_TEST_ACCOUNT", "")
+        return os.environ.get("SMARTSIM_TEST_ACCOUNT", None)
 
 
 @lru_cache(maxsize=128, typed=False)
-def get_config():
-
+def get_config() -> Config:
     # wrap into a function with a cached result
     return Config()

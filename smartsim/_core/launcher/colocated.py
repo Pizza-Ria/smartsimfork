@@ -25,13 +25,16 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import sys
+import typing as t
 
-from ...error import SSInternalError, SSUnsupportedError
+
+
+from ...error import SSInternalError
 from ..config import CONFIG
 from ..utils.helpers import create_lockfile_name
+from ...entity.dbobject import DBModel, DBScript
 
-
-def write_colocated_launch_script(file_name, db_log, colocated_settings):
+def write_colocated_launch_script(file_name: str, db_log: str, colocated_settings: t.Dict[str, t.Any]) -> None:
     """Write the colocated launch script
 
     This file will be written into the cwd of the step that
@@ -75,22 +78,28 @@ def write_colocated_launch_script(file_name, db_log, colocated_settings):
 
 
 def _build_colocated_wrapper_cmd(
-    db_log,
-    cpus=1,
-    rai_args=None,
-    extra_db_args=None,
-    port=6780,
-    ifname=None,
-    **kwargs,
-):
-    """Build the command use to run a colocated db application
+    db_log: str,
+    cpus: int = 1,
+    rai_args: t.Optional[t.Dict[str, str]] = None,
+    extra_db_args: t.Optional[t.Dict[str, str]] = None,
+    port: int = 6780,
+    ifname: t.Optional[t.Union[str, t.List[str]]] = None,
+    **kwargs: t.Any,
+) -> str:
+    """Build the command use to run a colocated DB application
 
+    :param db_log: log file for the db
+    :type db_log: str    
     :param cpus: db cpus, defaults to 1
     :type cpus: int, optional
     :param rai_args: redisai args, defaults to None
     :type rai_args: dict[str, str], optional
     :param extra_db_args: extra redis args, defaults to None
     :type extra_db_args: dict[str, str], optional
+    :param port: port to bind DB to
+    :type port: int
+    :param ifname: network interface(s) to bind DB to
+    :type ifname: str | list[str], optional
     :return: the command to run
     :rtype: str
     """
@@ -116,13 +125,15 @@ def _build_colocated_wrapper_cmd(
     ]
     # Add in the interface if using TCP/IP
     if ifname:
-        cmd.extend(["+ifname", ifname])
+        if isinstance(ifname, str):
+            ifname = [ifname]
+        cmd.extend(["+ifname", ",".join(ifname)])
     cmd.append("+command")
     # collect DB binaries and libraries from the config
     db_cmd = [CONFIG.database_exe, CONFIG.database_conf, "--loadmodule", CONFIG.redisai]
 
     # add extra redisAI configurations
-    for arg, value in rai_args.items():
+    for arg, value in (rai_args or {}).items():
         if value:
             # RAI wants arguments for inference in all caps
             # ex. THREADS_PER_QUEUE=1
@@ -151,13 +162,14 @@ def _build_colocated_wrapper_cmd(
     db_cmd.extend(
         ["--logfile", db_log]
     )  # usually /dev/null, unless debug was specified
-    for db_arg, value in extra_db_args.items():
-        # replace "_" with "-" in the db_arg because we use kwargs
-        # for the extra configurations and Python doesn't allow a hyphen
-        # in a variable name. All redis and KeyDB configuration options
-        # use hyphens in their names.
-        db_arg = db_arg.replace("_", "-")
-        db_cmd.extend([f"--{db_arg}", value])
+    if extra_db_args:
+        for db_arg, value in extra_db_args.items():
+            # replace "_" with "-" in the db_arg because we use kwargs
+            # for the extra configurations and Python doesn't allow a hyphen
+            # in a variable name. All redis and KeyDB configuration options
+            # use hyphens in their names.
+            db_arg = db_arg.replace("_", "-")
+            db_cmd.extend([f"--{db_arg}", value])
 
     db_models = kwargs.get("db_models", None)
     if db_models:
@@ -176,7 +188,7 @@ def _build_colocated_wrapper_cmd(
     return " ".join(cmd)
 
 
-def _build_db_model_cmd(db_models):
+def _build_db_model_cmd(db_models: t.List[DBModel]) -> t.List[str]:
     cmd = []
     for db_model in db_models:
         cmd.append("+db_model")
@@ -205,7 +217,7 @@ def _build_db_model_cmd(db_models):
     return cmd
 
 
-def _build_db_script_cmd(db_scripts):
+def _build_db_script_cmd(db_scripts: t.List[DBScript]) -> t.List[str]:
     cmd = []
     for db_script in db_scripts:
         cmd.append("+db_script")
